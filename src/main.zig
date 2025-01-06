@@ -1,24 +1,44 @@
 const std = @import("std");
+const options = @import("options.zig");
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    const allocator = gpa.allocator();
+    defer std.debug.assert(gpa.deinit() == .ok);
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    const program_and_args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, program_and_args);
 
-    try bw.flush(); // don't forget to flush!
+    const program: []const u8 = program_and_args[0];
+    const args: [][]const u8 = program_and_args[1..];
+
+    const stdout = std.io.getStdOut().writer();
+
+    const opts = options.parseArgs(args) catch {
+        try printUsage(allocator, program, stdout);
+        std.process.exit(1);
+
+        return;
+    };
+
+    switch (opts) {
+        .help => {
+            try printUsage(allocator, program, stdout);
+        },
+        .settings => {
+            std.debug.print("args: {}\n", .{opts});
+        },
+    }
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+fn printUsage(
+    allocator: std.mem.Allocator,
+    program: []const u8,
+    out: std.fs.File.Writer,
+) !void {
+    const usage = try options.usage(allocator, program);
+    defer allocator.free(usage);
+
+    try out.print("{s}", .{usage});
 }
