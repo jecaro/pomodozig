@@ -10,8 +10,8 @@ pub fn main() !void {
     const program_and_args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, program_and_args);
 
-    const program: []const u8 = program_and_args[0];
-    const args: [][]const u8 = program_and_args[1..];
+    const program = program_and_args[0];
+    const args = program_and_args[1..];
 
     const stdout = std.io.getStdOut().writer();
 
@@ -27,7 +27,14 @@ pub fn main() !void {
             try printUsage(allocator, program, stdout);
         },
         .settings => {
-            std.debug.print("args: {}\n", .{opts});
+            try setUnbufferedAndNoEcho(std.posix.STDIN_FILENO);
+            const stdin = std.io.getStdIn().reader();
+
+            try stdout.print("Settings: {}\n", .{opts});
+            while (true) {
+                try stdout.print("Hit a key to start\n", .{});
+                _ = try stdin.readByte();
+            }
         },
     }
 }
@@ -41,4 +48,13 @@ fn printUsage(
     defer allocator.free(usage);
 
     try out.print("{s}", .{usage});
+}
+
+fn setUnbufferedAndNoEcho(fd: std.posix.fd_t) !void {
+    var termios = try std.posix.tcgetattr(fd);
+    // unbuffered input
+    termios.lflag.ICANON = false;
+    // no echo
+    termios.lflag.ECHO = false;
+    try std.posix.tcsetattr(fd, .NOW, termios);
 }
