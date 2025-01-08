@@ -76,3 +76,7 @@ fn printUsage(
 
     try out.print("{s}", .{usage});
 }
+
+test "main.zig" {
+    std.testing.refAllDecls(@This());
+}
