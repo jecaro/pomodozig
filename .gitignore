@@ -1,2 +1,4 @@
 /.zig-cache/
+/result
+/scratch
 /zig-out/
