@@ -1,5 +1,7 @@
-const std = @import("std");
 const options = @import("options.zig");
+const std = @import("std");
+const step = @import("step.zig");
+const terminal = @import("terminal.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -26,15 +28,40 @@ pub fn main() !void {
         .help => {
             try printUsage(allocator, program, stdout);
         },
-        .settings => {
-            try setUnbufferedAndNoEcho(std.posix.STDIN_FILENO);
+        .settings => |settings| {
+            const term = try terminal.init(std.posix.STDIN_FILENO);
             const stdin = std.io.getStdIn().reader();
 
             try stdout.print("Settings: {}\n", .{opts});
-            while (true) {
-                try stdout.print("Hit a key to start\n", .{});
+
+            var current_step = step.Step{};
+            while (true) : ({
+                current_step = current_step.next(settings.num_pomodoros);
+            }) {
                 _ = try stdin.readByte();
+
+                var timer = try std.time.Timer.start();
+                const length = current_step.length(settings);
+
+                while (timer.read() < length) {
+                    const remaining = length - timer.read();
+                    const msg = try step.render(
+                        allocator,
+                        current_step,
+                        settings.num_pomodoros,
+                        remaining,
+                    );
+                    defer allocator.free(msg);
+
+                    try stdout.print("{s}", .{msg});
+
+                    std.time.sleep(std.time.ns_per_s);
+
+                    try stdout.print("\x1b[2K\r", .{});
+                }
             }
+
+            try terminal.deinit(term);
         },
     }
 }
@@ -48,13 +75,4 @@ fn printUsage(
     defer allocator.free(usage);
 
     try out.print("{s}", .{usage});
-}
-
-fn setUnbufferedAndNoEcho(fd: std.posix.fd_t) !void {
-    var termios = try std.posix.tcgetattr(fd);
-    // unbuffered input
-    termios.lflag.ICANON = false;
-    // no echo
-    termios.lflag.ECHO = false;
-    try std.posix.tcsetattr(fd, .NOW, termios);
 }
