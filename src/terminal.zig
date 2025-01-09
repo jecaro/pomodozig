@@ -16,6 +16,6 @@ pub fn init(fd: std.posix.fd_t) !Terminal {
     return .{ .termios = old, .fd = fd };
 }
 
-pub fn deinit(termios: Terminal) !void {
-    try std.posix.tcsetattr(termios.fd, .NOW, termios.termios);
+pub fn deinit(termios: Terminal) void {
+    std.posix.tcsetattr(termios.fd, .NOW, termios.termios) catch unreachable;
 }

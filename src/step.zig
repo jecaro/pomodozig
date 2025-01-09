@@ -36,22 +36,22 @@ pub const Step = struct {
 
         return minutes * std.time.ns_per_min;
     }
-};
 
-pub fn render(
-    allocator: std.mem.Allocator,
-    step: Step,
-    num_pomodoros: u32,
-    countdown: u64,
-) ![]u8 {
-    return try std.fmt.allocPrint(
-        allocator,
-        "{}/{}-{c}-{}",
-        .{
-            step.task,
-            num_pomodoros,
-            @intFromEnum(step.step_type),
-            countdown / std.time.ns_per_s,
-        },
-    );
-}
+    pub fn render(
+        self: Step,
+        allocator: std.mem.Allocator,
+        num_pomodoros: u32,
+        countdown: u64,
+    ) ![]u8 {
+        return try std.fmt.allocPrint(
+            allocator,
+            "{}/{}-{c}-{}",
+            .{
+                self.task,
+                num_pomodoros,
+                @intFromEnum(self.step_type),
+                countdown / std.time.ns_per_s,
+            },
+        );
+    }
+};

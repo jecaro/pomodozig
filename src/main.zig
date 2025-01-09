@@ -18,15 +18,13 @@ pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
 
     const opts = options.parseArgs(args) catch {
-        try printUsage(allocator, program, stdout);
+        try printUsage(allocator, stdout, program);
         std.process.exit(1);
-
-        return;
     };
 
     switch (opts) {
         .help => {
-            try printUsage(allocator, program, stdout);
+            try printUsage(allocator, stdout, program);
         },
         .settings => |settings| {
             try run(allocator, settings);
@@ -36,42 +34,65 @@ pub fn main() !void {
 
 fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
     const term = try terminal.init(std.posix.STDIN_FILENO);
+    defer terminal.deinit(term);
 
-    const stdin = std.io.getStdIn().reader();
     const stdout = std.io.getStdOut().writer();
 
-    var current_step = step.Step{};
-    while (true) : ({
-        current_step = current_step.next(settings.num_pomodoros);
-    }) {
-        _ = try stdin.readByte();
+    var poller = std.io.poll(
+        allocator,
+        enum { stdin },
+        .{ .stdin = std.io.getStdIn() },
+    );
+    defer poller.deinit();
 
+    var current = step.Step{};
+    while (true) : ({
+        current = current.next(settings.num_pomodoros);
+    }) {
         var timer = try std.time.Timer.start();
-        const length = current_step.length(settings);
+        const length = current.length(settings);
 
         while (timer.read() < length) {
             const remaining = length - timer.read();
-            const msg = try step.render(
+            try printRemaining(
                 allocator,
-                current_step,
+                stdout,
+                current,
                 settings.num_pomodoros,
                 remaining,
             );
-            defer allocator.free(msg);
 
-            try stdout.print("\x1b[2K\r{s}", .{msg});
-
-            std.time.sleep(std.time.ns_per_s);
+            _ = try poller.pollTimeout(std.time.ns_per_s) or break;
+            if (poller.fifo(.stdin).readItem()) |char| {
+                switch (char) {
+                    'q' => {
+                        try stdout.print("\n", .{});
+                        return;
+                    },
+                    else => {},
+                }
+            }
         }
     }
+}
 
-    try terminal.deinit(term);
+fn printRemaining(
+    allocator: std.mem.Allocator,
+    out: std.fs.File.Writer,
+    current: step.Step,
+    num_pomodoros: u32,
+    remaining: u64,
+) !void {
+    const msg = try current.render(allocator, num_pomodoros, remaining);
+    defer allocator.free(msg);
+
+    try out.print("\x1b[2K\r{s}", .{msg});
 }
 
 fn printUsage(
     allocator: std.mem.Allocator,
-    program: []const u8,
     out: std.fs.File.Writer,
+    program: []const u8,
 ) !void {
     const usage = try options.usage(allocator, program);
     defer allocator.free(usage);
