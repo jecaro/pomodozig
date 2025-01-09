@@ -29,41 +29,43 @@ pub fn main() !void {
             try printUsage(allocator, program, stdout);
         },
         .settings => |settings| {
-            const term = try terminal.init(std.posix.STDIN_FILENO);
-            const stdin = std.io.getStdIn().reader();
-
-            try stdout.print("Settings: {}\n", .{opts});
-
-            var current_step = step.Step{};
-            while (true) : ({
-                current_step = current_step.next(settings.num_pomodoros);
-            }) {
-                _ = try stdin.readByte();
-
-                var timer = try std.time.Timer.start();
-                const length = current_step.length(settings);
-
-                while (timer.read() < length) {
-                    const remaining = length - timer.read();
-                    const msg = try step.render(
-                        allocator,
-                        current_step,
-                        settings.num_pomodoros,
-                        remaining,
-                    );
-                    defer allocator.free(msg);
-
-                    try stdout.print("{s}", .{msg});
-
-                    std.time.sleep(std.time.ns_per_s);
-
-                    try stdout.print("\x1b[2K\r", .{});
-                }
-            }
-
-            try terminal.deinit(term);
+            try run(allocator, settings);
         },
     }
+}
+
+fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
+    const term = try terminal.init(std.posix.STDIN_FILENO);
+
+    const stdin = std.io.getStdIn().reader();
+    const stdout = std.io.getStdOut().writer();
+
+    var current_step = step.Step{};
+    while (true) : ({
+        current_step = current_step.next(settings.num_pomodoros);
+    }) {
+        _ = try stdin.readByte();
+
+        var timer = try std.time.Timer.start();
+        const length = current_step.length(settings);
+
+        while (timer.read() < length) {
+            const remaining = length - timer.read();
+            const msg = try step.render(
+                allocator,
+                current_step,
+                settings.num_pomodoros,
+                remaining,
+            );
+            defer allocator.free(msg);
+
+            try stdout.print("\x1b[2K\r{s}", .{msg});
+
+            std.time.sleep(std.time.ns_per_s);
+        }
+    }
+
+    try terminal.deinit(term);
 }
 
 fn printUsage(
