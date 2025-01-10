@@ -44,15 +44,19 @@ pub const Step = struct {
         countdown: u64,
         paused: bool,
     ) ![]u8 {
+        const total_secs = countdown / std.time.ns_per_s;
+        const mins = total_secs / std.time.s_per_min;
+        const secs = total_secs % std.time.s_per_min;
         return try std.fmt.allocPrint(
             allocator,
-            "{c}-{}/{}-{c}-{}",
+            "{c}-{}/{}-{c}-{:0>2}:{:0>2}",
             .{
                 @as(u8, if (paused) 'P' else 'R'),
                 self.task,
                 num_pomodoros,
                 @intFromEnum(self.step_type),
-                countdown / std.time.ns_per_s,
+                mins,
+                secs,
             },
         );
     }
