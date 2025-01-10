@@ -2,6 +2,7 @@ const options = @import("options.zig");
 const std = @import("std");
 const step = @import("step.zig");
 const terminal = @import("terminal.zig");
+const time_extra = @import("time/extra.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -46,20 +47,22 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
     defer poller.deinit();
 
     var current = step.Step{};
+    var paused = false;
     while (true) : ({
         current = current.next(settings.num_pomodoros);
     }) {
         var timer = try std.time.Timer.start();
         const length = current.length(settings);
 
-        while (timer.read() < length) {
-            const remaining = length - timer.read();
-            try printRemaining(
+        while (time_extra.read_paused(&timer, paused) < length) {
+            const remaining = length - time_extra.read_paused(&timer, paused);
+            try printStatus(
                 allocator,
                 stdout,
                 current,
                 settings.num_pomodoros,
                 remaining,
+                paused,
             );
 
             _ = try poller.pollTimeout(std.time.ns_per_s) or break;
@@ -69,6 +72,20 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
                         try stdout.print("\n", .{});
                         return;
                     },
+                    'p' => {
+                        paused = !paused;
+                        if (!paused) {
+                            //        running         paused
+                            //    |-------------|----------------|
+                            // started      previous             now
+                            const now = try std.time.Instant.now();
+                            const since_paused_nsec: u64 = now.since(timer.previous);
+                            timer.started = time_extra.add_ns(
+                                timer.started,
+                                since_paused_nsec,
+                            );
+                        }
+                    },
                     else => {},
                 }
             }
@@ -76,14 +93,15 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
     }
 }
 
-fn printRemaining(
+fn printStatus(
     allocator: std.mem.Allocator,
     out: std.fs.File.Writer,
     current: step.Step,
     num_pomodoros: u32,
     remaining: u64,
+    paused: bool,
 ) !void {
-    const msg = try current.render(allocator, num_pomodoros, remaining);
+    const msg = try current.render(allocator, num_pomodoros, remaining, paused);
     defer allocator.free(msg);
 
     try out.print("\x1b[2K\r{s}", .{msg});

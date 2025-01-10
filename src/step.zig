@@ -42,11 +42,13 @@ pub const Step = struct {
         allocator: std.mem.Allocator,
         num_pomodoros: u32,
         countdown: u64,
+        paused: bool,
     ) ![]u8 {
         return try std.fmt.allocPrint(
             allocator,
-            "{}/{}-{c}-{}",
+            "{c}-{}/{}-{c}-{}",
             .{
+                @as(u8, if (paused) 'P' else 'R'),
                 self.task,
                 num_pomodoros,
                 @intFromEnum(self.step_type),
