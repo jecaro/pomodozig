@@ -47,12 +47,12 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
     defer poller.deinit();
 
     var current = step.Step{};
-    var paused = false;
     while (true) : ({
         current = current.next(settings.num_pomodoros);
     }) {
         var timer = try std.time.Timer.start();
         const length = current.length(settings);
+        var paused = true;
 
         while (time_extra.read_paused(&timer, paused) < length) {
             const remaining = length - time_extra.read_paused(&timer, paused);
