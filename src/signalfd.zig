@@ -18,6 +18,7 @@ pub fn read(fifo: *std.io.PollFifo) !?std.os.linux.signalfd_siginfo {
 pub fn open() !std.fs.File {
     var mask = std.posix.empty_sigset;
     std.os.linux.sigaddset(&mask, std.os.linux.SIG.USR1);
+    std.os.linux.sigaddset(&mask, std.os.linux.SIG.USR2);
 
     _ = std.os.linux.sigprocmask(std.os.linux.SIG.BLOCK, &mask, null);
     return .{

@@ -78,7 +78,10 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
                         return;
                     },
                     'p' => {
-                        try togglePause(&paused, &timer);
+                        try togglePause(&timer, &paused);
+                    },
+                    'r' => {
+                        try reset(&current, &timer, &paused);
                     },
                     else => {},
                 }
@@ -87,7 +90,10 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
             if (try signalfd.read(poller.fifo(.signalfd))) |siginfo| {
                 switch (siginfo.signo) {
                     std.os.linux.SIG.USR1 => {
-                        try togglePause(&paused, &timer);
+                        try togglePause(&timer, &paused);
+                    },
+                    std.os.linux.SIG.USR2 => {
+                        try reset(&current, &timer, &paused);
                     },
                     else => unreachable,
                 }
@@ -96,7 +102,7 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
     }
 }
 
-fn togglePause(pause: *bool, timer: *std.time.Timer) !void {
+fn togglePause(timer: *std.time.Timer, pause: *bool) !void {
     // when restarting we offset the started field of the time of the time that
     // has passed since the pause started
     if (pause.*) {
@@ -111,6 +117,14 @@ fn togglePause(pause: *bool, timer: *std.time.Timer) !void {
         );
     }
     pause.* = !pause.*;
+}
+
+fn reset(current: *step.Step, timer: *std.time.Timer, paused: *bool) !void {
+    current.* = step.Step{};
+    if (!paused.*) {
+        try togglePause(timer, paused);
+    }
+    timer.reset();
 }
 
 fn printStatus(
