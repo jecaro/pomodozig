@@ -1,4 +1,5 @@
 const options = @import("options.zig");
+const signalfd = @import("signalfd.zig");
 const std = @import("std");
 const step = @import("step.zig");
 const terminal = @import("terminal.zig");
@@ -39,17 +40,21 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
 
     const stdout = std.io.getStdOut().writer();
 
+    const signalFile = try signalfd.open();
+    defer signalFile.close();
+
     var poller = std.io.poll(
         allocator,
-        enum { stdin },
-        .{ .stdin = std.io.getStdIn() },
+        enum { stdin, signalfd },
+        .{
+            .stdin = std.io.getStdIn(),
+            .signalfd = signalFile,
+        },
     );
     defer poller.deinit();
 
     var current = step.Step{};
-    while (true) : ({
-        current = current.next(settings.num_pomodoros);
-    }) {
+    while (true) : (current = current.next(settings.num_pomodoros)) {
         var timer = try std.time.Timer.start();
         const length = current.length(settings);
         var paused = true;
@@ -73,24 +78,39 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
                         return;
                     },
                     'p' => {
-                        paused = !paused;
-                        if (!paused) {
-                            //        running         paused
-                            //    |-------------|----------------|
-                            // started      previous             now
-                            const now = try std.time.Instant.now();
-                            const since_paused_nsec: u64 = now.since(timer.previous);
-                            timer.started = time_extra.add_ns(
-                                timer.started,
-                                since_paused_nsec,
-                            );
-                        }
+                        paused = try togglePause(paused, &timer);
                     },
                     else => {},
                 }
             }
+
+            if (try signalfd.read(poller.fifo(.signalfd))) |siginfo| {
+                switch (siginfo.signo) {
+                    std.os.linux.SIG.USR1 => {
+                        paused = try togglePause(paused, &timer);
+                    },
+                    else => unreachable,
+                }
+            }
         }
     }
+}
+
+fn togglePause(pause: bool, timer: *std.time.Timer) !bool {
+    // when restarting we offset the started field of the time of the time that
+    // has passed since the pause started
+    if (pause) {
+        //        running         paused
+        //    |-------------|----------------|
+        // started      previous             now
+        const now = try std.time.Instant.now();
+        const since_paused_nsec: u64 = now.since(timer.previous);
+        timer.started = time_extra.add_ns(
+            timer.started,
+            since_paused_nsec,
+        );
+    }
+    return !pause;
 }
 
 fn printStatus(
