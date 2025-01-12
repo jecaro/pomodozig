@@ -78,7 +78,7 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
                         return;
                     },
                     'p' => {
-                        paused = try togglePause(paused, &timer);
+                        try togglePause(&paused, &timer);
                     },
                     else => {},
                 }
@@ -87,7 +87,7 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
             if (try signalfd.read(poller.fifo(.signalfd))) |siginfo| {
                 switch (siginfo.signo) {
                     std.os.linux.SIG.USR1 => {
-                        paused = try togglePause(paused, &timer);
+                        try togglePause(&paused, &timer);
                     },
                     else => unreachable,
                 }
@@ -96,10 +96,10 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
     }
 }
 
-fn togglePause(pause: bool, timer: *std.time.Timer) !bool {
+fn togglePause(pause: *bool, timer: *std.time.Timer) !void {
     // when restarting we offset the started field of the time of the time that
     // has passed since the pause started
-    if (pause) {
+    if (pause.*) {
         //        running         paused
         //    |-------------|----------------|
         // started      previous             now
@@ -110,7 +110,7 @@ fn togglePause(pause: bool, timer: *std.time.Timer) !bool {
             since_paused_nsec,
         );
     }
-    return !pause;
+    pause.* = !pause.*;
 }
 
 fn printStatus(
