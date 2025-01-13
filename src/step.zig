@@ -3,8 +3,8 @@ const std = @import("std");
 
 pub const StepType = enum(u8) {
     task = 'T',
-    short_break = 'S',
-    long_break = 'L',
+    short_break = 'b',
+    long_break = 'B',
 };
 
 pub const Step = struct {
@@ -42,19 +42,17 @@ pub const Step = struct {
         allocator: std.mem.Allocator,
         num_pomodoros: u32,
         countdown: u64,
-        paused: bool,
     ) ![]u8 {
         const total_secs = countdown / std.time.ns_per_s;
         const mins = total_secs / std.time.s_per_min;
         const secs = total_secs % std.time.s_per_min;
         return try std.fmt.allocPrint(
             allocator,
-            "{c}-{}/{}-{c}-{:0>2}:{:0>2}",
+            "{c}-{}/{}-{:0>2}:{:0>2}",
             .{
-                @as(u8, if (paused) 'P' else 'R'),
+                @intFromEnum(self.step_type),
                 self.task,
                 num_pomodoros,
-                @intFromEnum(self.step_type),
                 mins,
                 secs,
             },

@@ -63,7 +63,6 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
                 current,
                 settings.num_pomodoros,
                 remaining,
-                timer.paused,
             );
 
             if (try poller.pollTimeout(std.time.ns_per_s)) |command_| {
@@ -95,9 +94,8 @@ fn printStatus(
     current: step.Step,
     num_pomodoros: u32,
     remaining: u64,
-    paused: bool,
 ) !void {
-    const msg = try current.render(allocator, num_pomodoros, remaining, paused);
+    const msg = try current.render(allocator, num_pomodoros, remaining);
     defer allocator.free(msg);
 
     try out.print("{s}\n", .{msg});
