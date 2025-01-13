@@ -47,12 +47,17 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
     }
 
     var current = step.Step{};
-    while (true) : (current = current.next(settings.num_pomodoros)) {
+    while (true) : ({
+        current = current.next(settings.num_pomodoros);
+        notify(allocator, current.step_type.message());
+    }) {
         var timer = try pausable_timer.PausableTimer.init();
 
         var remaining = current.length(settings);
 
-        while (remaining > 0) : (remaining = current.length(settings) -| timer.read()) {
+        while (remaining > 0) : ({
+            remaining = current.length(settings) -| timer.read();
+        }) {
             // Clear the last status
             if (poller.interactive()) {
                 try stdout.print("\x1b[F\x1b[2K\r", .{});
@@ -86,6 +91,17 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
             }
         }
     }
+}
+
+fn notify(allocator: std.mem.Allocator, message: []const u8) void {
+    const argv = [_][]const u8{ "notify-send", "pomodozig", message };
+    var proc = std.process.Child.init(&argv, allocator);
+
+    proc.spawn() catch {
+        return;
+    };
+
+    _ = proc.wait() catch {};
 }
 
 fn printStatus(

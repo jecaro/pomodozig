@@ -5,6 +5,14 @@ pub const StepType = enum(u8) {
     task = 'T',
     short_break = 'b',
     long_break = 'B',
+
+    pub fn message(self: StepType) []const u8 {
+        return switch (self) {
+            StepType.task => "Time to focus!",
+            StepType.short_break => "Time for a break!",
+            StepType.long_break => "Time for a long break!",
+        };
+    }
 };
 
 pub const Step = struct {
