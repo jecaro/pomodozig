@@ -1,5 +1,8 @@
 const std = @import("std");
 
+/// Turn on these two options on the given fd:
+/// - ICANON: disable line buffering
+/// - ECHO: disable echo
 pub const Terminal = struct {
     termios: std.posix.termios,
     fd: std.posix.fd_t,

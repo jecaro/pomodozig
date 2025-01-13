@@ -41,14 +41,22 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
     var poller = try command.Poller.init(allocator);
     defer poller.deinit();
 
+    // Print a placeholder to be cleared by the first status
+    if (poller.interactive()) {
+        try stdout.print("\n", .{});
+    }
+
     var current = step.Step{};
     while (true) : (current = current.next(settings.num_pomodoros)) {
         var timer = try pausable_timer.PausableTimer.init();
 
-        const length = current.length(settings);
-        var remaining = length;
+        var remaining = current.length(settings);
 
-        while (remaining > 0) : (remaining = length -| timer.read()) {
+        while (remaining > 0) : (remaining = current.length(settings) -| timer.read()) {
+            // Clear the last status
+            if (poller.interactive()) {
+                try stdout.print("\x1b[F\x1b[2K\r", .{});
+            }
             try printStatus(
                 allocator,
                 stdout,
@@ -88,7 +96,7 @@ fn printStatus(
     const msg = try current.render(allocator, num_pomodoros, remaining, paused);
     defer allocator.free(msg);
 
-    try out.print("\x1b[2K\r{s}", .{msg});
+    try out.print("{s}\n", .{msg});
 }
 
 fn printUsage(

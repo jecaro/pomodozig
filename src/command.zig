@@ -13,17 +13,22 @@ const FdType = enum { stdin, signalfd };
 pub const Poller = struct {
     poller: std.io.Poller(FdType),
     signalfd: std.fs.File,
-    terminal: terminal.Terminal,
+    /// Option set to the terminal, is null when running in non-interactive mode
+    terminal: ?terminal.Terminal,
 
     pub fn init(allocator: std.mem.Allocator) !Poller {
-        const terminal_ = try terminal.Terminal.init(std.posix.STDIN_FILENO);
-        errdefer terminal.deinit();
+        const opt_terminal = terminal.Terminal.init(std.posix.STDIN_FILENO) catch null;
+        errdefer {
+            if (opt_terminal) |terminal_| {
+                terminal_.deinit();
+            }
+        }
 
         const signalfd_ = try signalfd.open();
         errdefer signalfd_.close();
 
         return Poller{
-            .terminal = terminal_,
+            .terminal = opt_terminal,
             .signalfd = signalfd_,
             .poller = std.io.poll(
                 allocator,
@@ -36,9 +41,13 @@ pub const Poller = struct {
         };
     }
 
+    pub fn interactive(self: *Poller) bool {
+        return self.terminal != null;
+    }
+
     pub fn deinit(self: *Poller) void {
         self.poller.deinit();
-        self.terminal.deinit();
+        if (self.terminal) |terminal_| terminal_.deinit();
         self.signalfd.close();
     }
 
