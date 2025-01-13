@@ -76,7 +76,11 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
                         try timer.togglePause();
                     },
                     command.Command.Reset => {
-                        current = step.Step{};
+                        // if the step is not started yet
+                        if (timer.paused and remaining == current.length(settings)) {
+                            current = step.Step{};
+                        }
+
                         try timer.reset();
                     },
                 }
