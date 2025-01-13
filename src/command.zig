@@ -17,7 +17,7 @@ pub const Poller = struct {
     terminal: ?terminal.Terminal,
 
     pub fn init(allocator: std.mem.Allocator) !Poller {
-        const opt_terminal = terminal.Terminal.init(std.posix.STDIN_FILENO) catch null;
+        const opt_terminal = terminal.Terminal.init() catch null;
         errdefer {
             if (opt_terminal) |terminal_| {
                 terminal_.deinit();
