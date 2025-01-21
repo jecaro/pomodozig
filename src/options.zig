@@ -16,6 +16,8 @@ pub const Settings = struct {
     num_pomodoros: u32 = 4,
     /// Length of a long break in minutes
     long_break: u32 = 15,
+    /// Enable notifications
+    notifications: bool = true,
 };
 
 pub fn parseArgs(args: []const []const u8) !Options {
@@ -37,6 +39,8 @@ pub fn parseArgs(args: []const []const u8) !Options {
         } else if (i + 1 < args.len and std.mem.eql(u8, arg, "-lb")) {
             i += 1;
             settings.long_break = try std.fmt.parseInt(u32, args[i], 10);
+        } else if (std.mem.eql(u8, arg, "-s")) {
+            settings.notifications = false;
         }
         // help
         else if (std.mem.eql(u8, arg, "-h")) {
@@ -58,6 +62,7 @@ pub fn usage(allocator: std.mem.Allocator, program: []const u8) ![]u8 {
         \\[-sb <short_break>]   Short break length in minutes (default: 5 mins)
         \\[-n <num_pomodoros>]  Number of pomodoros before long break (default: 4)
         \\[-lb <long_break>]    Long break length in minutes (default: 15 mins)
+        \\[-s]                  Disable notifications
         \\[-h]                  Show this help message
         \\
     , .{program});
@@ -71,6 +76,7 @@ test "parseArgs options" {
         "-sb", "10",
         "-n",  "5",
         "-lb", "20",
+        "-s",
     };
 
     const options = try parseArgs(&args);
@@ -78,6 +84,7 @@ test "parseArgs options" {
     try std.testing.expectEqual(options.settings.short_break, 10);
     try std.testing.expectEqual(options.settings.num_pomodoros, 5);
     try std.testing.expectEqual(options.settings.long_break, 20);
+    try std.testing.expectEqual(options.settings.notifications, false);
 }
 
 test "parseArgs help" {

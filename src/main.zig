@@ -49,7 +49,9 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
     var current = step.Step{};
     while (true) : ({
         current = current.next(settings.num_pomodoros);
-        notify(allocator, current.step_type.message());
+        if (settings.notifications) {
+            notify(allocator, current.step_type.message());
+        }
     }) {
         var timer = try pausable_timer.PausableTimer.init();
 
