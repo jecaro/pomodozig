@@ -2,12 +2,27 @@ name: "CI"
 on:
   pull_request:
   push:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: cachix/install-nix-action@v27
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Install nix
+      uses: cachix/install-nix-action@v27
       with:
         github_access_token: ${{ secrets.GITHUB_TOKEN }}
-    - run: nix build
+    - name: Build
+      run: nix build
+    - name: Compress
+      if: startsWith(github.ref, 'refs/tags/')
+      run: tar -czf pomodozig.tar.gz -C result/bin pomodozig
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        draft: true
+        files: pomodozig.tar.gz
+
