@@ -48,7 +48,7 @@ pub const PausableTimer = struct {
 pub fn add_ns(instant: std.time.Instant, offset_nsec: u64) std.time.Instant {
     // timestamp is expressed in seconds and nanoseconds. we add the offset to
     // the nanoseconds part
-    const instant_tv_nsec: u64 = @intCast(instant.timestamp.tv_nsec);
+    const instant_tv_nsec: u64 = @intCast(instant.timestamp.nsec);
     const total_tv_nsec: u64 = instant_tv_nsec + offset_nsec;
 
     // then we split the result in the new nanosecond part
@@ -57,7 +57,7 @@ pub fn add_ns(instant: std.time.Instant, offset_nsec: u64) std.time.Instant {
     const elapsed_sec: u64 = total_tv_nsec / std.time.ns_per_s;
 
     return .{ .timestamp = .{
-        .tv_sec = instant.timestamp.tv_sec + @as(isize, @intCast(elapsed_sec)),
-        .tv_nsec = @intCast(new_ns),
+        .sec = instant.timestamp.sec + @as(isize, @intCast(elapsed_sec)),
+        .nsec = @intCast(new_ns),
     } };
 }
