@@ -18,7 +18,9 @@ pub fn main() !void {
     const program = program_and_args[0];
     const args = program_and_args[1..];
 
-    const stdout = std.io.getStdOut().writer();
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
 
     const opts = options.parseArgs(args) catch {
         try printUsage(allocator, stdout, program);
@@ -30,20 +32,19 @@ pub fn main() !void {
             try printUsage(allocator, stdout, program);
         },
         .settings => |settings| {
-            try run(allocator, settings);
+            try run(allocator, stdout, settings);
         },
     }
 }
 
-fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
-    const stdout = std.io.getStdOut().writer();
-
+fn run(allocator: std.mem.Allocator, out: *std.Io.Writer, settings: options.Settings) !void {
     var poller = try command.Poller.init(allocator);
     defer poller.deinit();
 
     // Print a placeholder to be cleared by the first status
     if (poller.interactive()) {
-        try stdout.print("\n", .{});
+        try out.print("\n", .{});
+        try out.flush();
     }
 
     var current = step.Step{};
@@ -62,11 +63,12 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
         }) {
             // Clear the last status
             if (poller.interactive()) {
-                try stdout.print("\x1b[F\x1b[2K\r", .{});
+                try out.print("\x1b[F\x1b[2K\r", .{});
+                try out.flush();
             }
             try printStatus(
                 allocator,
-                stdout,
+                out,
                 current,
                 settings.num_pomodoros,
                 remaining,
@@ -75,7 +77,8 @@ fn run(allocator: std.mem.Allocator, settings: options.Settings) !void {
             if (try poller.pollTimeout(std.time.ns_per_s)) |command_| {
                 switch (command_) {
                     command.Command.Quit => {
-                        try stdout.print("\n", .{});
+                        try out.print("\n", .{});
+                        try out.flush();
                         return;
                     },
                     command.Command.Pause => {
@@ -108,7 +111,7 @@ fn notify(allocator: std.mem.Allocator, message: []const u8) void {
 
 fn printStatus(
     allocator: std.mem.Allocator,
-    out: std.fs.File.Writer,
+    out: *std.Io.Writer,
     current: step.Step,
     num_pomodoros: u32,
     remaining: u64,
@@ -117,17 +120,19 @@ fn printStatus(
     defer allocator.free(msg);
 
     try out.print("{s}\n", .{msg});
+    try out.flush();
 }
 
 fn printUsage(
     allocator: std.mem.Allocator,
-    out: std.fs.File.Writer,
+    out: *std.Io.Writer,
     program: []const u8,
 ) !void {
     const usage = try options.usage(allocator, program);
     defer allocator.free(usage);
 
     try out.print("{s}", .{usage});
+    try out.flush();
 }
 
 test "main.zig" {

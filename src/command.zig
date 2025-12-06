@@ -34,7 +34,7 @@ pub const Poller = struct {
                 allocator,
                 FdType,
                 .{
-                    .stdin = std.io.getStdIn(),
+                    .stdin = std.fs.File.stdin(),
                     .signalfd = signalfd_,
                 },
             ),
@@ -52,9 +52,12 @@ pub const Poller = struct {
     }
 
     pub fn pollTimeout(self: *Poller, nanoseconds: u64) !?Command {
-        _ = try self.poller.pollTimeout(nanoseconds) or return error.Interrupted;
+        if (!try self.poller.pollTimeout(nanoseconds)) {
+            return null;
+        }
 
-        if (self.poller.fifo(.stdin).readItem()) |char| {
+        if (self.poller.reader(.stdin).buffered().len > 0) {
+            const char = try self.poller.reader(.stdin).takeByte();
             switch (char) {
                 'p' => return Command.Pause,
                 'q' => return Command.Quit,
@@ -63,7 +66,8 @@ pub const Poller = struct {
             }
         }
 
-        if (try signalfd.read(self.poller.fifo(.signalfd))) |siginfo| {
+        if (self.poller.reader(.signalfd).buffered().len > 0) {
+            const siginfo = try self.poller.reader(.signalfd).takeStruct(std.os.linux.signalfd_siginfo, .little);
             switch (siginfo.signo) {
                 std.os.linux.SIG.USR1 => return Command.Pause,
                 std.os.linux.SIG.USR2 => return Command.Reset,
