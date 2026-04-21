@@ -6,20 +6,17 @@ const std = @import("std");
 const step = @import("step.zig");
 const terminal = @import("terminal.zig");
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
 
-    const allocator = gpa.allocator();
-    defer std.debug.assert(gpa.deinit() == .ok);
-
-    const program_and_args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, program_and_args);
+    const program_and_args = try init.minimal.args.toSlice(allocator);
+    defer allocator.free(program_and_args);
 
     const program = program_and_args[0];
     const args = program_and_args[1..];
 
     var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
 
     const opts = options.parseArgs(args) catch {
@@ -32,13 +29,13 @@ pub fn main() !void {
             try printUsage(allocator, stdout, program);
         },
         .settings => |settings| {
-            try run(allocator, stdout, settings);
+            try run(allocator, init.io, stdout, settings);
         },
     }
 }
 
-fn run(allocator: std.mem.Allocator, out: *std.Io.Writer, settings: options.Settings) !void {
-    var poller = try command.Poller.init(allocator);
+fn run(allocator: std.mem.Allocator, io: std.Io, out: *std.Io.Writer, settings: options.Settings) !void {
+    var poller = try command.Poller.init();
     defer poller.deinit();
 
     // Print a placeholder to be cleared by the first status
@@ -51,10 +48,10 @@ fn run(allocator: std.mem.Allocator, out: *std.Io.Writer, settings: options.Sett
     while (true) : ({
         current = current.next(settings.num_pomodoros);
         if (settings.notifications) {
-            notify(allocator, current.step_type.message());
+            notify(io, current.step_type.message());
         }
     }) {
-        var timer = try pausable_timer.PausableTimer.init();
+        var timer = pausable_timer.PausableTimer.init();
 
         var remaining = current.length(settings);
 
@@ -82,7 +79,7 @@ fn run(allocator: std.mem.Allocator, out: *std.Io.Writer, settings: options.Sett
                         return;
                     },
                     command.Command.Pause => {
-                        try timer.togglePause();
+                        timer.togglePause();
                     },
                     command.Command.Reset => {
                         // if the step is not started yet
@@ -90,7 +87,7 @@ fn run(allocator: std.mem.Allocator, out: *std.Io.Writer, settings: options.Sett
                             current = step.Step{};
                         }
 
-                        try timer.reset();
+                        timer.reset();
                     },
                 }
             }
@@ -98,15 +95,13 @@ fn run(allocator: std.mem.Allocator, out: *std.Io.Writer, settings: options.Sett
     }
 }
 
-fn notify(allocator: std.mem.Allocator, message: []const u8) void {
+fn notify(io: std.Io, message: []const u8) void {
     const argv = [_][]const u8{ "notify-send", "pomodozig", message };
-    var proc = std.process.Child.init(&argv, allocator);
-
-    proc.spawn() catch {
+    var proc = std.process.spawn(io, .{ .argv = &argv }) catch {
         return;
     };
 
-    _ = proc.wait() catch {};
+    _ = proc.wait(io) catch {};
 }
 
 fn printStatus(
